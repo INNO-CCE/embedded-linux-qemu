@@ -6,7 +6,8 @@
 #    **没有 -device loader**。三个文件全在 SD 卡里，
 #    U-Boot 要自己去读——这才是真板子上的流程。
 #
-#  卡里放了 boot.scr.uimg，U-Boot 的 distro_bootcmd 会自动找到并执行它，
+#  启动命令写在 U-Boot 编译时的 bootcmd 里（见 build-uboot.sh），
+#  它用 fatload 从 SD 卡读三个文件再 bootz。
 #  所以正常情况下你什么都不用敲，等几秒就进 shell 了。
 #
 #  唯一剩下的"作弊"是 -kernel u-boot：
@@ -22,26 +23,25 @@ IMG=$OUT_DIR/sd.img
 cat <<EOF
 
 ─────────────────────────────────────────────────────────────
- 这次什么都不用敲。U-Boot 会：
-   1. 扫 mmc0（distro_bootcmd）
-   2. 在 FAT 根目录找到 boot.scr.uimg
-   3. 执行它 —— 里面就是"load 三个文件 + bootz"
+ 这次什么都不用敲。U-Boot 的 bootcmd 会：
+   1. fatload 从 SD 卡把 zImage / 设备树 / initrd 读进内存
+   2. bootz 把控制权交给内核
 
  想自己动手的话：在 Hit any key to stop autoboot 时敲个回车，
- 停在 => 提示符，然后自己敲这九条：
+ 停在 => 提示符，然后自己敲这几条：
 
    setenv fdt_high 0xffffffff
    setenv initrd_high 0xffffffff
    setenv bootargs console=ttyAMA0
    mmc dev 0
    fatls mmc 0:1
-   load mmc 0:1 $ADDR_KERNEL zImage
-   load mmc 0:1 $ADDR_DTB $DTB_NAME
-   load mmc 0:1 $ADDR_INITRD rootfs.cpio.gz.uimg
+   fatload mmc 0:1 $ADDR_KERNEL zImage
+   fatload mmc 0:1 $ADDR_DTB $DTB_NAME
+   fatload mmc 0:1 $ADDR_INITRD rootfs.cpio.gz.uimg
    bootz $ADDR_KERNEL $ADDR_INITRD $ADDR_DTB
 
  fatls = 列出卡里的文件（列目录）
- load  = 把文件从卡读进内存地址
+ fatload = 把文件从卡读进内存地址
 
  退出 QEMU：Ctrl+A 松手，再按 X
 ─────────────────────────────────────────────────────────────

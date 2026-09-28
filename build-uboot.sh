@@ -10,6 +10,29 @@ set -euo pipefail
 need_dir "$UBOOT_SRC"
 cd "$UBOOT_SRC"
 
+# ---------- 0. 改写默认 bootcmd ----------
+# 为什么要改：这片板子的 U-Boot 默认 bootcmd 是
+#     run distro_bootcmd; run bootflash
+# 但它的默认环境里**缺一堆关键变量**（scriptaddr、pxefile_addr_r、
+# ramdisk_addr …），而且 `load` 这条命令根本不可用。
+# 结果两条自动启动路径都是坏的，开机只能掉到 => 提示符。
+#
+# 所以这里直接换成我们自己的命令：用亲测可用的 `fatload` 从 SD 卡
+# 把三个文件读进内存，再 bootz。
+BOOTCMD="setenv fdt_high 0xffffffff; setenv initrd_high 0xffffffff; \
+setenv bootargs console=ttyAMA0; \
+fatload mmc 0:1 $ADDR_KERNEL zImage; \
+fatload mmc 0:1 $ADDR_DTB $DTB_NAME; \
+fatload mmc 0:1 $ADDR_INITRD rootfs.cpio.gz.uimg; \
+bootz $ADDR_KERNEL $ADDR_INITRD $ADDR_DTB"
+
+say "改写 U-Boot 的默认 bootcmd"
+sed -i '/^CONFIG_BOOTCOMMAND=/d' "configs/$UBOOT_DEFCONFIG"
+printf 'CONFIG_BOOTCOMMAND="%s"\n' "$BOOTCMD" >> "configs/$UBOOT_DEFCONFIG"
+
+# 必须删掉旧的 .config，否则下面的「挑配置」会被跳过，改动不生效
+rm -f .config
+
 # ---------- 1. 挑配置 ----------
 if [ ! -f .config ]; then
     say "挑配置：$UBOOT_DEFCONFIG"

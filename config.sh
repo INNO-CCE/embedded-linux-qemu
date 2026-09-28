@@ -17,7 +17,10 @@ JOBS=4
 
 # ---- 目标板 ----
 QEMU_MACHINE=vexpress-a9
-QEMU_RAM=256M
+# 板级配置（vexpress）假定内存有 1 GB，所以这里也给它 1 GB。
+# 注意 U-Boot 会打印 "DRAM: 512 MiB (effective 1 GiB)"——那是它的探测
+# 和配置对不上，属于这块板子的老毛病，无害。
+QEMU_RAM=1024M
 KERNEL_DEFCONFIG=vexpress_defconfig
 UBOOT_DEFCONFIG=vexpress_ca9x4_defconfig
 DTB_NAME=vexpress-v2p-ca9.dtb
