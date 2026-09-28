@@ -35,6 +35,34 @@
 | `build-busybox.sh` | 编 BusyBox + 组装根文件系统 + 打包 | `out/rootfs.cpio.gz`、`out/rootfs.cpio.gz.uimg` |
 | `build-all.sh` | 上面三个按顺序跑一遍 | —— |
 | `run-qemu.sh` | 启动 QEMU | —— |
+| `make-sd-image.sh` | 造一张 FAT 格式的虚拟 SD 卡，把产物和 `boot.scr` 拷进去 | `out/sd.img` |
+| `run-qemu-sd.sh` | 从 SD 卡启动（**没有 `-device loader`，而且全自动**） | —— |
+
+**两种启动方式**：
+
+| | `run-qemu.sh` | `run-qemu-sd.sh` |
+|---|---|---|
+| 文件怎么进内存 | QEMU 用 `-device loader` 摆好 | **U-Boot 从 SD 卡 `load` 进来** |
+| 要不要手敲命令 | 要（四条） | **不用，`boot.scr` 自动执行** |
+| 像不像真板子 | 有点像（省掉了存储那一步） | **基本一致** |
+| 需要 SD 卡驱动 | 不需要 | U-Boot 的 MMC 驱动（QEMU 的 vexpress 有） |
+
+### `boot.scr` 是什么
+
+`make-sd-image.sh` 会先写一个纯文本的 `out/boot.cmd`：
+
+```
+setenv bootargs console=ttyAMA0
+load mmc 0:1 0x62000000 zImage
+load mmc 0:1 0x61000000 vexpress-v2p-ca9.dtb
+load mmc 0:1 0x64000000 rootfs.cpio.gz.uimg
+bootz 0x62000000 0x64000000 0x61000000
+```
+
+再用 `mkimage -T script` 打包成 `boot.scr.uimg`。U-Boot 的 `distro_bootcmd`
+会去 FAT 根目录找 `boot.scr.uimg` / `boot.scr`，找到就执行。
+
+**这就是工业界的 "distro boot" 流程**——Ubuntu、Debian 的 ARM 镜像都是这么启动的。
 
 **想改目录或版本，只改 `config.sh`。**
 
@@ -100,10 +128,8 @@ sudo apt install -y build-essential bc bison flex libssl-dev libncurses-dev \
 
 ## 已知限制 / 下一步
 
-1. **U-Boot 还是要手敲那四条命令。**
-   想做成一键自动启动，可以在 U-Boot 的 defconfig 里加一行
-   `CONFIG_BOOTCOMMAND="setenv bootargs console=ttyAMA0; bootz ..."`，重新编译。
-2. **文件是 QEMU 用 `-device loader` 摆进内存的。**
-   真板子上是 U-Boot 自己从 Flash 或 SD 卡读进来的。
-   下一步可以做一个 FAT 格式的虚拟 SD 卡，让 U-Boot 用 `fatload` 读——
-   那就和真板子完全一致了。
+1. **`-kernel u-boot` 还是"作弊"。**
+   真板子上 U-Boot 住在 Flash 里，由芯片的 ROM 代码加载。QEMU 给不了我们一块
+   烧好 U-Boot 的 Flash，所以这一环只能让它代劳。**其余全部真实。**
+2. **`run-qemu.sh` 那条路还要手敲命令。** 用 `run-qemu-sd.sh` 就自动了。
+3. 下一步可以用 **Buildroot** 把整件事重做一遍，看框架怎么自动化这一切。
